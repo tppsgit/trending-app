@@ -1,0 +1,16 @@
+{
+  "name": "trending-stocks-app",
+  "version": "1.0.0",
+  "description": "Top 20 Trending Stocks Mobile App with Backend API",
+  "scripts": {
+    "start": "node backend/server.js",
+    "build": "cd frontend && npm install && npm run build:web && cp -r dist ../backend/public",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "dev": "cd backend && npm run dev"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
