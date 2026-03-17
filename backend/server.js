@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const cache = new NodeCache({ stdTTL: 600 }); // Cache for 10 minutes
+const cache = new NodeCache({ stdTTL: 86400 }); // Cache for 24 hours
 
 app.use(cors());
 app.use(express.json());
@@ -50,6 +50,27 @@ const COMPANY_NAMES = {
 // Alpha Vantage API Key
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY || 'FQSFVIRBDMJAOHOJ';
 
+// API usage tracking
+let apiCallCount = 0;
+let lastApiReset = new Date().toDateString();
+const MAX_DAILY_CALLS = 25;
+
+function checkApiLimit() {
+  const today = new Date().toDateString();
+  if (today !== lastApiReset) {
+    apiCallCount = 0;
+    lastApiReset = today;
+  }
+  
+  if (apiCallCount >= MAX_DAILY_CALLS) {
+    return false; // Limit reached
+  }
+  
+  apiCallCount++;
+  console.log(`API call ${apiCallCount}/${MAX_DAILY_CALLS} for ${today}`);
+  return true;
+}
+
 // Fetch stock data from Alpha Vantage
 async function fetchStockData(symbol) {
   const cacheKey = `stock_${symbol}`;
@@ -57,6 +78,12 @@ async function fetchStockData(symbol) {
   
   if (cachedData) {
     return cachedData;
+  }
+
+  // Check API limit before making call
+  if (!checkApiLimit()) {
+    console.log('Daily API limit reached, returning null for stock data');
+    return null;
   }
 
   try {
@@ -87,7 +114,7 @@ async function fetchStockData(symbol) {
       latestTradingDay: quote['07. latest trading day']
     };
 
-    cache.set(cacheKey, stockData);
+    cache.set(cacheKey, stockData, 86400); // Cache for 24 hours
     return stockData;
   } catch (error) {
     console.error(`Error fetching data for ${symbol}:`, error.message);
@@ -98,6 +125,23 @@ async function fetchStockData(symbol) {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// API usage status endpoint
+app.get('/api/status', (req, res) => {
+  const today = new Date().toDateString();
+  if (today !== lastApiReset) {
+    apiCallCount = 0;
+    lastApiReset = today;
+  }
+  
+  res.json({
+    date: today,
+    apiCallsUsed: apiCallCount,
+    apiCallsRemaining: MAX_DAILY_CALLS - apiCallCount,
+    maxDailyCalls: MAX_DAILY_CALLS,
+    cacheStats: cache.getStats()
+  });
 });
 
 // Get all trending stocks - Top 20 Gainers from Alpha Vantage
@@ -111,6 +155,26 @@ app.get('/api/trending', async (req, res) => {
     }
 
     console.log('Fetching top gainers from Alpha Vantage API...');
+    
+    // Check API limit before making call
+    if (!checkApiLimit()) {
+      console.log('Daily API limit reached, using fallback data for trending');
+      const fallbackData = TRENDING_SYMBOLS.map((symbol, index) => ({
+        id: index + 1,
+        symbol: symbol,
+        name: COMPANY_NAMES[symbol],
+        price: (150 + Math.random() * 200).toFixed(2),
+        change: (Math.random() * 10 - 5).toFixed(2),
+        changePercent: ((Math.random() * 6 - 3)).toFixed(2) + '%',
+        volume: Math.floor(Math.random() * 50000000).toLocaleString(),
+        high: (160 + Math.random() * 200).toFixed(2),
+        low: (140 + Math.random() * 180).toFixed(2),
+        rank: index + 1
+      }));
+      
+      cache.set('all_trending', fallbackData, 86400); // Cache for 24 hours
+      return res.json(fallbackData);
+    }
     
     // Fetch top gainers from Alpha Vantage
     const response = await axios.get('https://www.alphavantage.co/query', {
@@ -138,7 +202,7 @@ app.get('/api/trending', async (req, res) => {
       }));
 
       console.log(`Fetched ${topGainers.length} top gainers`);
-      cache.set('all_trending', topGainers, 300); // Cache for 5 minutes
+      cache.set('all_trending', topGainers, 86400); // Cache for 24 hours
       return res.json(topGainers);
     }
 
@@ -158,7 +222,7 @@ app.get('/api/trending', async (req, res) => {
         rank: index + 1
       }));
       
-      cache.set('all_trending', fallbackData, 300); // Cache for 5 minutes
+      cache.set('all_trending', fallbackData, 86400); // Cache for 24 hours
       return res.json(fallbackData);
     }
 
@@ -177,7 +241,7 @@ app.get('/api/trending', async (req, res) => {
       rank: index + 1
     }));
 
-    cache.set('all_trending', trendingStocks, 300);
+    cache.set('all_trending', trendingStocks, 86400); // Cache for 24 hours
     res.json(trendingStocks);
   } catch (error) {
     console.error('Error fetching trending stocks:', error.message);
@@ -219,6 +283,12 @@ app.get('/api/search', async (req, res) => {
     }
 
     console.log(`Searching for: ${query}`);
+
+    // Check API limit before making call
+    if (!checkApiLimit()) {
+      console.log('Daily API limit reached, returning empty search results');
+      return res.json([]);
+    }
 
     // Use Alpha Vantage SYMBOL_SEARCH endpoint
     const response = await axios.get('https://www.alphavantage.co/query', {
