@@ -62,26 +62,42 @@ const TrendingListScreen = ({ navigation }) => {
       return;
     }
 
-    // First filter local stocks
-    const localFiltered = stocks.filter(stock => 
-      stock.symbol.toLowerCase().includes(query.toLowerCase()) ||
-      stock.name.toLowerCase().includes(query.toLowerCase())
-    );
-
-    if (localFiltered.length > 0) {
-      setFilteredStocks(localFiltered);
-      setSearchResults([]);
-      return;
-    }
-
-    // If no local results, search via API
+    // Always search both local and API for comprehensive results
     setIsSearching(true);
+    
     try {
+      // Filter local stocks first
+      const localFiltered = stocks.filter(stock => 
+        stock.symbol.toLowerCase().includes(query.toLowerCase()) ||
+        stock.name.toLowerCase().includes(query.toLowerCase())
+      );
+
+      // Search via API for broader results
       const response = await axios.get(ENDPOINTS.SEARCH(query));
-      setSearchResults(response.data);
-      setFilteredStocks([]);
+      const apiResults = response.data || [];
+
+      // If we have API results, show them (more comprehensive)
+      if (apiResults.length > 0) {
+        setSearchResults(apiResults);
+        setFilteredStocks([]);
+      } else if (localFiltered.length > 0) {
+        // Fallback to local results if API returns nothing
+        setFilteredStocks(localFiltered);
+        setSearchResults([]);
+      } else {
+        // No results found anywhere
+        setSearchResults([]);
+        setFilteredStocks([]);
+      }
     } catch (err) {
       console.error('Error searching stocks:', err);
+      // Fallback to local search on API error
+      const localFiltered = stocks.filter(stock => 
+        stock.symbol.toLowerCase().includes(query.toLowerCase()) ||
+        stock.name.toLowerCase().includes(query.toLowerCase())
+      );
+      setFilteredStocks(localFiltered);
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }

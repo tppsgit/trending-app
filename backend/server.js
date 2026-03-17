@@ -286,8 +286,25 @@ app.get('/api/search', async (req, res) => {
 
     // Check API limit before making call
     if (!checkApiLimit()) {
-      console.log('Daily API limit reached, returning empty search results');
-      return res.json([]);
+      console.log('Daily API limit reached, searching local trending stocks');
+      // Fallback: search within current trending stocks
+      const localResults = TRENDING_SYMBOLS
+        .filter(symbol => 
+          symbol.toLowerCase().includes(query.toLowerCase()) ||
+          COMPANY_NAMES[symbol]?.toLowerCase().includes(query.toLowerCase())
+        )
+        .map((symbol, index) => ({
+          id: index + 1,
+          symbol: symbol,
+          name: COMPANY_NAMES[symbol] || symbol,
+          type: 'Equity',
+          region: 'United States',
+          currency: 'USD',
+          matchScore: '1.0000'
+        }));
+      
+      cache.set(cacheKey, localResults, 3600);
+      return res.json(localResults);
     }
 
     // Use Alpha Vantage SYMBOL_SEARCH endpoint
@@ -298,6 +315,8 @@ app.get('/api/search', async (req, res) => {
         apikey: ALPHA_VANTAGE_API_KEY
       }
     });
+
+    console.log('Search API response keys:', Object.keys(response.data));
 
     if (response.data.bestMatches && response.data.bestMatches.length > 0) {
       const results = response.data.bestMatches.slice(0, 10).map((match, index) => ({
@@ -310,6 +329,7 @@ app.get('/api/search', async (req, res) => {
         matchScore: match['9. matchScore']
       }));
 
+      console.log(`Found ${results.length} search results for "${query}"`);
       cache.set(cacheKey, results, 3600); // Cache for 1 hour
       return res.json(results);
     }
