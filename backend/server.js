@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const cache = new NodeCache({ stdTTL: 86400 }); // Cache for 24 hours
+const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour (25 calls/day = ~1 call/hour)
 
 app.use(cors());
 app.use(express.json());
@@ -114,7 +114,7 @@ async function fetchStockData(symbol) {
       latestTradingDay: quote['07. latest trading day']
     };
 
-    cache.set(cacheKey, stockData, 86400); // Cache for 24 hours
+    cache.set(cacheKey, stockData, 3600); // Cache for 1 hour
     return stockData;
   } catch (error) {
     console.error(`Error fetching data for ${symbol}:`, error.message);
@@ -172,7 +172,7 @@ app.get('/api/trending', async (req, res) => {
         rank: index + 1
       }));
       
-      cache.set('all_trending', fallbackData, 86400); // Cache for 24 hours
+      cache.set('all_trending', fallbackData, 3600); // Cache for 1 hour
       return res.json(fallbackData);
     }
     
@@ -202,7 +202,7 @@ app.get('/api/trending', async (req, res) => {
       }));
 
       console.log(`Fetched ${topGainers.length} top gainers`);
-      cache.set('all_trending', topGainers, 86400); // Cache for 24 hours
+      cache.set('all_trending', topGainers, 3600); // Cache for 1 hour
       return res.json(topGainers);
     }
 
@@ -222,7 +222,7 @@ app.get('/api/trending', async (req, res) => {
         rank: index + 1
       }));
       
-      cache.set('all_trending', fallbackData, 86400); // Cache for 24 hours
+      cache.set('all_trending', fallbackData, 3600); // Cache for 1 hour
       return res.json(fallbackData);
     }
 
@@ -241,7 +241,7 @@ app.get('/api/trending', async (req, res) => {
       rank: index + 1
     }));
 
-    cache.set('all_trending', trendingStocks, 86400); // Cache for 24 hours
+    cache.set('all_trending', trendingStocks, 3600); // Cache for 1 hour
     res.json(trendingStocks);
   } catch (error) {
     console.error('Error fetching trending stocks:', error.message);
@@ -310,7 +310,7 @@ app.get('/api/search', async (req, res) => {
         matchScore: match['9. matchScore']
       }));
 
-      cache.set(cacheKey, results, 300); // Cache for 5 minutes
+      cache.set(cacheKey, results, 3600); // Cache for 1 hour
       return res.json(results);
     }
 
