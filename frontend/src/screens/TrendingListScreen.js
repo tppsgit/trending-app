@@ -24,6 +24,9 @@ const TrendingListScreen = ({ navigation }) => {
   const [isSearching, setIsSearching] = useState(false);
 
   const fetchTrendingStocks = async () => {
+    let hasError = false;
+    let is429Error = false;
+    
     try {
       setError(null);
       const response = await axios.get(ENDPOINTS.TRENDING);
@@ -31,18 +34,21 @@ const TrendingListScreen = ({ navigation }) => {
       setFilteredStocks(response.data);
     } catch (err) {
       console.error('Error fetching stocks:', err);
+      hasError = true;
+      is429Error = err.response?.status === 429;
+      
       // Don't show error for 429, just retry silently
-      if (err.response?.status !== 429) {
+      if (!is429Error) {
         setError('Failed to load trending stocks. Please try again.');
       }
       // Retry after 2 seconds for 429 errors
-      if (err.response?.status === 429) {
+      if (is429Error) {
         setTimeout(() => {
           fetchTrendingStocks();
         }, 2000);
       }
     } finally {
-      if (!err || err.response?.status !== 429) {
+      if (!hasError || !is429Error) {
         setLoading(false);
         setRefreshing(false);
       }
