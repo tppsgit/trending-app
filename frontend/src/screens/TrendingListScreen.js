@@ -31,10 +31,21 @@ const TrendingListScreen = ({ navigation }) => {
       setFilteredStocks(response.data);
     } catch (err) {
       console.error('Error fetching stocks:', err);
-      setError('Failed to load trending stocks. Please try again.');
+      // Don't show error for 429, just retry silently
+      if (err.response?.status !== 429) {
+        setError('Failed to load trending stocks. Please try again.');
+      }
+      // Retry after 2 seconds for 429 errors
+      if (err.response?.status === 429) {
+        setTimeout(() => {
+          fetchTrendingStocks();
+        }, 2000);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!err || err.response?.status !== 429) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 

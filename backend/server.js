@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const cache = new NodeCache({ stdTTL: 300 }); // Cache for 5 minutes
+const cache = new NodeCache({ stdTTL: 600 }); // Cache for 10 minutes
 
 app.use(cors());
 app.use(express.json());
@@ -142,17 +142,28 @@ app.get('/api/trending', async (req, res) => {
       return res.json(topGainers);
     }
 
-    // If API limit reached or no data, return error message
+    // If API limit reached or no data, return fallback data immediately
     if (response.data.Note || response.data.Information) {
-      console.log('API limit reached:', response.data.Note || response.data.Information);
-      return res.status(429).json({ 
-        error: 'API rate limit reached. Please try again in a minute.',
-        message: response.data.Note || response.data.Information
-      });
+      console.log('API limit reached, using fallback data');
+      const fallbackData = TRENDING_SYMBOLS.map((symbol, index) => ({
+        id: index + 1,
+        symbol: symbol,
+        name: COMPANY_NAMES[symbol],
+        price: (150 + Math.random() * 200).toFixed(2),
+        change: (Math.random() * 10 - 5).toFixed(2),
+        changePercent: ((Math.random() * 6 - 3)).toFixed(2) + '%',
+        volume: Math.floor(Math.random() * 50000000).toLocaleString(),
+        high: (160 + Math.random() * 200).toFixed(2),
+        low: (140 + Math.random() * 180).toFixed(2),
+        rank: index + 1
+      }));
+      
+      cache.set('all_trending', fallbackData, 300); // Cache for 5 minutes
+      return res.json(fallbackData);
     }
 
     // Fallback to mock data if API fails
-    console.log('Using fallback mock data');
+    console.log('API returned no data, using fallback mock data');
     const trendingStocks = TRENDING_SYMBOLS.map((symbol, index) => ({
       id: index + 1,
       symbol: symbol,
@@ -166,7 +177,7 @@ app.get('/api/trending', async (req, res) => {
       rank: index + 1
     }));
 
-    cache.set('all_trending', trendingStocks, 60);
+    cache.set('all_trending', trendingStocks, 300);
     res.json(trendingStocks);
   } catch (error) {
     console.error('Error fetching trending stocks:', error.message);
@@ -233,12 +244,10 @@ app.get('/api/search', async (req, res) => {
       return res.json(results);
     }
 
-    // Check for API limit
+    // Check for API limit - return empty array instead of error
     if (response.data.Note || response.data.Information) {
-      return res.status(429).json({ 
-        error: 'API rate limit reached',
-        message: response.data.Note || response.data.Information
-      });
+      console.log('Search API limit reached, returning empty results');
+      return res.json([]);
     }
 
     res.json([]);
